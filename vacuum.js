@@ -13,16 +13,18 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-var fs = require('fs')
-var cfgfile = './config.json';
-if (!fs.existsSync(cfgfile)) {
-    console.log('You need to create a config.json file');
-    process.exit(64);
+var fs = require("fs")
+var cfgfile = "./config.json";
+var config = undefined;
+
+if (fs.existsSync(cfgfile)) {
+    config = JSON.parse(fs.readFileSync(cfgfile, "utf-8"));
+} else {
+    config = {};
 }
-var config = JSON.parse(fs.readFileSync(cfgfile, 'utf-8'));
 
 if (config.spool == undefined) {
-    config.spool = '/tmp/spool';
+    config.spool = "/tmp/spool";
 }
 
 if (config.sleeptime == undefined) {
@@ -35,49 +37,61 @@ if (!fs.existsSync(config.spool)) {
 }
 
 // Create our connection to Couchbase!
-var couchnode = require('couchbase');
-var cb = new couchnode.Couchbase(config.hostname,
-    config.username,
-    config.password,
-    config.bucket);
+var couchnode = require("couchbase");
 
-function set_handler(data, error, key, cas) {
-    if (error) {
-        console.log('Failed to store object: %s', key);
-    } else {
-        fs.unlink(data);
-        process_next();
+var bucket = {};
+
+// @todo fix the config
+couchnode.connect(config, function(err, cb) {
+    if (err) {
+        console.log("ERROR - Failed to connect to server");
+        process.exit(1);
     }
-}
+
+    bucket = cb;
+    cb.on("error", function (message) {
+        console.log("ERROR: [" + message + "]");
+        process.exit(1);
+    });
+
+    process_next();
+});
 
 function illegalfile(type, name) {
-    console.log('%s JSON file: %s', type, name)
-    newname = config.spool + '/.' + name + '.' + type;
+    console.log("%s JSON file: %s", type, name)
+    var newname = config.spool + '/.' + name + '.' + type;
     fs.renameSync(config.spool + '/' + name, newname);
     process_next();
 }
 
 function process_file(name) {
-    console.log('Process file %s', name);
+    console.log("Process file %s", name);
     fs.readFile(config.spool + '/' + name, function (err, data) {
-        fullname = config.spool + '/' + name;
+        var fullname = config.spool + '/' + name;
         if (err) {
             throw err;
         }
 
         // try to convert it to JSON
-        obj = undefined;
+        var obj = undefined;
         try {
-            obj = JSON.parse(data, 'utf-8');
+            obj = JSON.parse(data, "utf-8");
         } catch (err) {
         }
 
         if (obj == undefined) {
-            illegalfile('illegal', name);
+            illegalfile("illegal", name);
         } else if (obj._id == undefined) {
-            illegalfile('unknown', name);
+            illegalfile("unknown", name);
         } else {
-            cb.set(obj._id, String(data), 0, undefined, set_handler, fullname);
+            bucket.set(obj._id, String(data), {}, function (error, meta) {
+		if (error) {
+		    console.log("Failed to store object: %s", key);
+		} else {
+		    fs.unlink(fullname);
+		    process_next();
+		}
+	    });
         }
     });
 }
@@ -85,7 +99,7 @@ function process_file(name) {
 function process_next() {
     fs.readdir(config.spool, function (error, files) {
         if (error) {
-            console.log('Failed to read spool directory.. terminate');
+            console.log("Failed to read spool directory.. terminate");
             process.exit(1);
         }
 
@@ -93,8 +107,8 @@ function process_next() {
             // I should try to figure out how to iterate over the files..
             for (var i = 0; i < files.length; ++i) {
                 if (files[i][0] == '.') {
-                    if (files[i] == '.dump_stats') {
-                        console.log('Dump statistics not supported yet');
+                    if (files[i] == ".dump_stats") {
+                        console.log("Dump statistics not supported yet");
                     }
                 } else {
                     process_file(files[i]);
@@ -106,5 +120,3 @@ function process_next() {
         setTimeout(process_next, config.sleeptime);
     });
 }
-
-process_next();

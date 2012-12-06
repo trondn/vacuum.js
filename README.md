@@ -73,8 +73,8 @@ Install the Couchbase driver from npm:
 Create a configuration file named config.json with the following content:
 
     {
-        "hostname" : "mycluster:8091",
-        "username" : "vacuum",
+        "hosts" : [ "localhost:9000" ],
+        "user" : "vacuum",
         "password" : "secret",
         "bucket" : "vacuum",
         "spool" : "/tmp/vacuum",

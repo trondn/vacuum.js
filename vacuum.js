@@ -69,7 +69,9 @@ function process_file(name) {
     fs.readFile(config.spool + '/' + name, function (err, data) {
         var fullname = config.spool + '/' + name;
         if (err) {
-            throw err;
+            console.log("Failed to open file: " + err);
+            process_next();
+            return ;
         }
 
         // try to convert it to JSON

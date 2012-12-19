@@ -81,9 +81,10 @@ function process_file(name) {
 
         if (obj == undefined) {
             illegalfile("illegal", name);
-        } else if (obj._id == undefined) {
-            illegalfile("unknown", name);
         } else {
+            if (obj._id == undefined) {
+                obj._id = name;
+            }
             bucket.set(obj._id, String(data), {}, function (error, meta) {
 		if (error) {
 		    console.log("Failed to store object: %s", key);
